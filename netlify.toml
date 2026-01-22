@@ -1,0 +1,10 @@
+
+[build]
+  # আপনার ফ্রন্টএন্ড বিল্ড হওয়ার পর যেখানে ফাইলগুলো থাকে (সাধারণত dist বা build)
+  publish = "dist"
+  # নেটলিফাই ফাংশন বা বেকেন্ড কোড যে ফোল্ডারে আছে
+  functions = "netlify/functions"
+
+[functions]
+  # নেটলিফাইকে বলা হচ্ছে যে ফাংশনগুলো Node.js এ রান করবে
+  node_bundler = "esbuild"

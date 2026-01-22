@@ -1,0 +1,7 @@
+{
+  "name": "Gemini Voice Live - Bangla",
+  "description": "A real-time voice interaction app powered by Gemini 2.5 Flash Native Audio. Talk to Gemini naturally with low latency and real-time transcription.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
