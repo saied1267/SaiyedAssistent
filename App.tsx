@@ -14,33 +14,35 @@ const App: React.FC = () => {
   const [isConfigLoading, setIsConfigLoading] = useState(true);
   
   const [config, setConfig] = useState<AppConfig>({
-    systemInstruction: 'Loading...',
+    systemInstruction: 'আপনি একজন দক্ষ বাংলা এআই অ্যাসিস্ট্যান্ট।',
     voiceName: 'Puck'
   });
   
-  // Fetch configuration from Netlify Function on mount
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        // Netlify function endpoint
-        const response = await fetch('/.netlify/functions/config');
+        // Timeout handling for fetch
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch('/.netlify/functions/config', { signal: controller.signal });
+        clearTimeout(timeoutId);
+
         if (response.ok) {
           const data = await response.json();
           setConfig({
-            systemInstruction: data.systemInstruction,
-            voiceName: data.voiceName
+            systemInstruction: data.systemInstruction || config.systemInstruction,
+            voiceName: data.voiceName || config.voiceName
           });
+          console.log("Config loaded from Netlify");
         } else {
-          throw new Error("Backend response not ok");
+          console.warn("Backend returned error, using local defaults.");
         }
       } catch (err) {
-        console.error("Failed to load Netlify config, using fallback.");
-        setConfig({
-          systemInstruction: "You are a helpful assistant speaking in Bangla.",
-          voiceName: "Puck"
-        });
+        console.error("Failed to load Netlify config, using fallback.", err);
       } finally {
-        setIsConfigLoading(false);
+        // Always stop loading after 2 seconds regardless of success to show the UI
+        setTimeout(() => setIsConfigLoading(false), 1000);
       }
     };
 
@@ -178,7 +180,7 @@ const App: React.FC = () => {
       <div className="flex h-screen w-full items-center justify-center bg-[#0a0a0a] text-white">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400 animate-pulse font-mono uppercase tracking-widest text-xs">Syncing with Netlify Node.js Backend...</p>
+          <p className="text-gray-400 animate-pulse font-mono uppercase tracking-widest text-[10px]">Initialising Voice Engine...</p>
         </div>
       </div>
     );
@@ -196,9 +198,9 @@ const App: React.FC = () => {
       </button>
 
       {showSettings && (
-        <div className="fixed inset-y-0 right-0 w-80 glass z-40 p-6 shadow-2xl animate-in slide-in-from-right duration-300">
+        <div className="fixed inset-y-0 right-0 w-80 glass z-40 p-6 shadow-2xl animate-in slide-in-from-right duration-300 overflow-y-auto">
           <h2 className="text-xl font-bold mb-2">Instructions</h2>
-          <p className="text-[10px] text-green-400 mb-6 font-mono uppercase tracking-widest">Synced with Netlify Backend</p>
+          <p className="text-[10px] text-green-400 mb-6 font-mono uppercase tracking-widest">Live Sync Status: Active</p>
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">System Instruction</label>
@@ -232,7 +234,7 @@ const App: React.FC = () => {
           Gemini Voice Live
         </h1>
         <p className="text-gray-400 mt-2 text-sm uppercase tracking-widest font-medium">
-          Netlify Node.js Powered
+          Bangla Voice Bot
         </p>
       </div>
 
@@ -240,7 +242,7 @@ const App: React.FC = () => {
         <VoiceVisualizer isActive={status === ConnectionStatus.CONNECTED} isSpeaking={isSpeaking} volume={volume} />
         <div className="h-24 w-full text-center px-4 flex items-center justify-center">
           <p className="text-xl md:text-2xl font-light text-gray-200">
-            {currentTranscription || (status === ConnectionStatus.CONNECTED ? 'Listening...' : 'বটনের ক্লিক করে কথা শুরু করুন')}
+            {currentTranscription || (status === ConnectionStatus.CONNECTED ? 'Listening...' : 'কথা শুরু করতে নিচের বাটনে ক্লিক করুন')}
           </p>
         </div>
         <button
