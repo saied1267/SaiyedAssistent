@@ -1,9 +1,9 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { ConnectionStatus, Message, AppConfig } from './types';
-import { decode, decodeAudioData, createBlob } from './utils/audioUtils';
-import VoiceVisualizer from './components/VoiceVisualizer';
+import { ConnectionStatus, Message, AppConfig } from './types.ts';
+import { decode, decodeAudioData, createBlob } from './utils/audioUtils.ts';
+import VoiceVisualizer from './VoiceVisualizer.tsx';
 
 const App: React.FC = () => {
   const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
@@ -21,9 +21,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        // Timeout handling for fetch
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
 
         const response = await fetch('/.netlify/functions/config', { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -34,15 +33,12 @@ const App: React.FC = () => {
             systemInstruction: data.systemInstruction || config.systemInstruction,
             voiceName: data.voiceName || config.voiceName
           });
-          console.log("Config loaded from Netlify");
-        } else {
-          console.warn("Backend returned error, using local defaults.");
+          console.log("Config loaded successfully");
         }
       } catch (err) {
-        console.error("Failed to load Netlify config, using fallback.", err);
+        console.warn("Config fetch failed, using defaults", err);
       } finally {
-        // Always stop loading after 2 seconds regardless of success to show the UI
-        setTimeout(() => setIsConfigLoading(false), 1000);
+        setIsConfigLoading(false);
       }
     };
 
@@ -73,6 +69,7 @@ const App: React.FC = () => {
     setStatus(ConnectionStatus.CONNECTING);
     
     try {
+      // Create a new instance right before use as per guidelines to ensure fresh API key context
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       if (!audioContextRef.current) {
@@ -112,6 +109,7 @@ const App: React.FC = () => {
               setVolume(Math.sqrt(sum / inputData.length));
 
               const pcmBlob = createBlob(inputData);
+              // Ensure sendRealtimeInput is called after connection promise resolves to avoid race conditions
               sessionPromise.then((session) => {
                 session.sendRealtimeInput({ media: pcmBlob });
               });
@@ -129,10 +127,11 @@ const App: React.FC = () => {
               const source = outputCtx.createBufferSource();
               source.buffer = audioBuffer;
               source.connect(outputCtx.destination);
-              source.onended = () => {
+              // Use addEventListener for robust cleanup as per guidelines
+              source.addEventListener('ended', () => {
                 sourcesRef.current.delete(source);
                 if (sourcesRef.current.size === 0) setIsSpeaking(false);
-              };
+              });
               source.start(nextStartTimeRef.current);
               nextStartTimeRef.current += audioBuffer.duration;
               sourcesRef.current.add(source);
@@ -153,13 +152,17 @@ const App: React.FC = () => {
               stopAllAudio();
             }
           },
-          onerror: (e) => setStatus(ConnectionStatus.ERROR),
+          onerror: (e) => {
+            console.error("Session error:", e);
+            setStatus(ConnectionStatus.ERROR);
+          },
           onclose: () => setStatus(ConnectionStatus.DISCONNECTED),
         }
       });
 
       sessionRef.current = await sessionPromise;
     } catch (err) {
+      console.error("Connection failed:", err);
       setStatus(ConnectionStatus.ERROR);
     }
   };
@@ -179,48 +182,47 @@ const App: React.FC = () => {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#0a0a0a] text-white">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400 animate-pulse font-mono uppercase tracking-widest text-[10px]">Initialising Voice Engine...</p>
+          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500 font-mono text-[10px] tracking-widest uppercase">Booting System...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen w-full items-center justify-center p-4 md:p-8 bg-[#0a0a0a] text-white overflow-hidden relative">
+    <div className="flex flex-col h-screen w-full items-center justify-center p-4 bg-[#0a0a0a] text-white overflow-hidden relative font-sans">
       
-      {/* Settings Panel */}
       <button 
         onClick={() => setShowSettings(!showSettings)}
-        className="absolute top-8 right-8 z-50 glass p-3 rounded-full hover:bg-white/10 transition-colors"
+        className="absolute top-6 right-6 z-50 glass p-3 rounded-full hover:bg-white/10 transition-all active:scale-95"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
       </button>
 
       {showSettings && (
-        <div className="fixed inset-y-0 right-0 w-80 glass z-40 p-6 shadow-2xl animate-in slide-in-from-right duration-300 overflow-y-auto">
-          <h2 className="text-xl font-bold mb-2">Instructions</h2>
-          <p className="text-[10px] text-green-400 mb-6 font-mono uppercase tracking-widest">Live Sync Status: Active</p>
-          <div className="space-y-6">
+        <div className="fixed inset-y-0 right-0 w-72 glass z-40 p-6 shadow-2xl animate-in slide-in-from-right duration-300">
+          <h2 className="text-lg font-bold mb-1">Configuration</h2>
+          <p className="text-[9px] text-blue-400 mb-6 font-mono uppercase tracking-widest">Engine: Gemini 2.5 Flash</p>
+          <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">System Instruction</label>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-2">Instruction</label>
               <textarea 
-                className="w-full h-40 bg-black/40 border border-white/10 rounded-lg p-3 text-sm focus:border-blue-500 outline-none transition-colors"
+                className="w-full h-32 bg-black/40 border border-white/5 rounded-lg p-3 text-sm focus:border-blue-500/50 outline-none transition-all resize-none"
                 value={config.systemInstruction}
                 onChange={(e) => setConfig({...config, systemInstruction: e.target.value})}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Voice Model</label>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-2">Voice Tone</label>
               <select 
-                className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm outline-none"
+                className="w-full bg-black/40 border border-white/5 rounded-lg p-3 text-sm outline-none appearance-none"
                 value={config.voiceName}
                 onChange={(e) => setConfig({...config, voiceName: e.target.value as any})}
               >
-                <option value="Puck">Puck (Energetic)</option>
+                <option value="Puck">Puck (Cheerful)</option>
                 <option value="Charon">Charon (Deep)</option>
                 <option value="Kore">Kore (Soft)</option>
-                <option value="Fenrir">Fenrir (Calm)</option>
+                <option value="Fenrir">Fenrir (Steady)</option>
                 <option value="Zephyr">Zephyr (Balanced)</option>
               </select>
             </div>
@@ -228,37 +230,47 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Header */}
-      <div className="absolute top-8 text-center">
-        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
-          Gemini Voice Live
+      <div className="text-center absolute top-12">
+        <h1 className="text-2xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-500">
+          GEMINI VOICE
         </h1>
-        <p className="text-gray-400 mt-2 text-sm uppercase tracking-widest font-medium">
-          Bangla Voice Bot
-        </p>
+        <div className="h-px w-12 bg-blue-600 mx-auto mt-2 opacity-50"></div>
       </div>
 
-      <div className="flex flex-col items-center justify-center w-full max-w-2xl flex-grow space-y-8">
-        <VoiceVisualizer isActive={status === ConnectionStatus.CONNECTED} isSpeaking={isSpeaking} volume={volume} />
-        <div className="h-24 w-full text-center px-4 flex items-center justify-center">
-          <p className="text-xl md:text-2xl font-light text-gray-200">
-            {currentTranscription || (status === ConnectionStatus.CONNECTED ? 'Listening...' : 'কথা শুরু করতে নিচের বাটনে ক্লিক করুন')}
+      <div className="flex flex-col items-center justify-center w-full max-w-lg flex-grow space-y-12">
+        <div className="relative">
+          <VoiceVisualizer isActive={status === ConnectionStatus.CONNECTED} isSpeaking={isSpeaking} volume={volume} />
+          {status === ConnectionStatus.CONNECTING && (
+             <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-24 h-24 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+             </div>
+          )}
+        </div>
+        
+        <div className="h-20 w-full text-center px-6 overflow-hidden">
+          <p className="text-lg md:text-xl font-medium text-gray-300 transition-all duration-300">
+            {currentTranscription || (status === ConnectionStatus.CONNECTED ? 'Listening...' : 'বটটির সাথে কথা বলতে নিচের বাটনে ক্লিক করুন')}
           </p>
         </div>
+
         <button
           onClick={status === ConnectionStatus.CONNECTED ? disconnect : connect}
-          className={`px-12 py-4 rounded-full text-lg font-bold transition-all shadow-2xl ${
-            status === ConnectionStatus.CONNECTED ? 'bg-red-500 shadow-red-500/30' : 'bg-gradient-to-r from-blue-600 to-purple-600 shadow-blue-500/30'
-          }`}
+          className={`group relative overflow-hidden px-10 py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all ${
+            status === ConnectionStatus.CONNECTED 
+            ? 'bg-white text-black hover:bg-gray-200' 
+            : 'bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_30px_rgba(37,99,235,0.3)]'
+          } disabled:opacity-50 active:scale-95`}
           disabled={status === ConnectionStatus.CONNECTING}
         >
-          {status === ConnectionStatus.CONNECTED ? 'Stop Session' : 'Start Live Mode'}
+          {status === ConnectionStatus.CONNECTED ? 'End Conversation' : 'Start Session'}
         </button>
       </div>
 
-      <div className="absolute bottom-8 flex space-x-4 items-center glass px-6 py-2 rounded-full text-xs text-gray-400">
-        <div className={`w-2 h-2 rounded-full ${status === ConnectionStatus.CONNECTED ? 'bg-green-500' : 'bg-gray-500'}`} />
-        <span className="font-mono uppercase">{status}</span>
+      <div className="absolute bottom-10 flex items-center space-x-3 bg-white/5 px-4 py-2 rounded-full border border-white/5">
+        <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+          status === ConnectionStatus.CONNECTED ? 'bg-green-500' : status === ConnectionStatus.ERROR ? 'bg-red-500' : 'bg-gray-600'
+        }`} />
+        <span className="text-[10px] font-mono font-bold text-gray-400 tracking-widest uppercase">{status}</span>
       </div>
     </div>
   );
