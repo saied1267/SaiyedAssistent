@@ -1,10 +1,15 @@
 
 [build]
-  # আপনার ফ্রন্টএন্ড বিল্ড হওয়ার পর যেখানে ফাইলগুলো থাকে (সাধারণত dist বা build)
-  publish = "dist"
-  # নেটলিফাই ফাংশন বা বেকেন্ড কোড যে ফোল্ডারে আছে
+  # যেহেতু আপনি কোনো বিল্ড ফ্রেমওয়ার্ক (যেমন Vite) ব্যবহার করছেন না, তাই রুট ডিরেক্টরিই পাবলিশ হবে
+  publish = "."
+  # ফাংশন ফোল্ডার লোকেশন
   functions = "netlify/functions"
 
 [functions]
-  # নেটলিফাইকে বলা হচ্ছে যে ফাংশনগুলো Node.js এ রান করবে
   node_bundler = "esbuild"
+  external_node_modules = ["@netlify/functions"]
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
